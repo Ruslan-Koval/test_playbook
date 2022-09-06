@@ -1,0 +1,104 @@
+#Install nginx
+- hosts: localhost
+  become: yes
+  vars:
+    new_mysql_root_password: "Qwerty2022"
+    mysqlsoftware:
+      - mysql-server
+      - mysql-client
+  tasks:
+    - name: Update apt cache and install Nginx
+      apt:
+        name: nginx
+        state: latest
+        update_cache: yes
+
+    - name: Allow all access to tcp port 80
+      ufw:
+        rule: allow
+        port: '80'
+        proto: tcp
+
+  handlers:
+    - name: Restart Nginx
+      service:
+        name: nginx
+        state: restarted
+        
+        
+#Install PHP 8 + PHP-FPM 8
+    - name: Installation install software-properties-common
+      apt: 
+        name: software-properties-common
+
+    - name: Repo PHP 8.1
+      apt_repository:
+        repo: "ppa:ondrej/php"
+   
+    - name: Updating the repo
+      apt: 
+        update_cache: yes
+
+    - name: Installation PHP 8.1
+      apt: 
+        name: php8.1 
+        state: present
+
+    - name: install php-fpm
+      apt:
+        pkg:
+          - php8.1-fpm 
+        state: present
+        update_cache: yes
+        
+#Install MySQL
+    - name: install python, pip etc
+      shell: apt-get -y install "{{ item }}"
+      with_items:
+        - pip 
+        - python3-dev 
+        - default-libmysqlclient-dev 
+        - build-essential
+
+    - name: Install MySQL server
+      shell: apt-get -y install mysql-server
+
+    - name: Install MySQL client
+      shell: apt-get -y install mysql-client
+
+    - name: pip install mysqlclient
+      shell: pip install mysqlclient
+
+    - name: Start the MySQL service
+      action: service name=mysql state=started
+
+    - name: update mysql root password for root account
+      mysql_user:
+        user: root
+        login_unix_socket: /var/run/mysqld/mysqld.sock
+        host: localhost
+        password: "{{ new_mysql_root_password }}"
+        priv: "*.*:ALL,GRANT"
+        check_implicit_admin: true
+
+    - name: delete anonymous MySQL server user for localhost
+      action: mysql_user user="" state="absent"
+
+    - name: remove the MySQL test database
+      action: mysql_db db=test state=absent
+
+    - name: Create a new database called wordpress
+      mysql_db:
+        login_user: root
+        login_unix_socket: /var/run/mysqld/mysqld.sock
+        login_password: "{{ new_mysql_root_password }}"
+        name: wordpress
+        state: present
+
+    - name: Configure new MySQL user called wpuser
+      mysql_user:
+        login_user: root
+        login_unix_socket: /var/run/mysqld/mysqld.sock
+        login_password: "{{ new_mysql_root_password }}"
+        name: wpuser
+        priv: 'wordpress.*:ALL'
